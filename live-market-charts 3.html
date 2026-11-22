@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Live Market Charts</title>
+<style>
+:root{--bg:#0c3b55;--ink:#e8f6ef;--mute:#9cc3c4;--up:#3ddc84;--down:#ff6a3d;--line:rgba(61,220,132,.55);color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:"Trebuchet MS",system-ui,sans-serif}
+header{padding:calc(14px + env(safe-area-inset-top,0px)) 12px 8px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+h1{margin:0;font-size:1.1rem}
+.tf button{background:transparent;color:var(--ink);border:1px solid var(--line);padding:6px 12px;border-radius:6px;font:inherit;font-size:.85rem;margin-left:4px}
+.tf button.on{background:var(--up);color:#06281a;border-color:var(--up)}
+.cols{display:grid;grid-template-columns:1fr 1fr;border-top:2px solid var(--line)}
+.col:first-child{border-right:2px solid var(--line)}
+.hd{padding:8px 10px;font-weight:700;font-size:.85rem;border-bottom:2px solid var(--line)}
+.up{color:var(--up)}.down{color:var(--down)}
+.box{position:relative;height:300px;border-bottom:2px solid var(--line)}
+.sw{position:absolute;right:6px;bottom:6px;z-index:5;background:rgba(0,0,0,.55);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px 8px;font:inherit;font-size:.72rem}
+.tip{padding:10px 12px calc(14px + env(safe-area-inset-bottom,0px));color:var(--mute);font-size:.8rem;line-height:1.5}
+</style>
+</head>
+<body>
+<header><h1>Live market charts</h1><div class="tf" id="tf"></div></header>
+<div class="cols">
+ <div class="col"><div class="hd up">Gold-oppam same direction</div><div id="L"></div></div>
+ <div class="col"><div class="hd down">Gold-nu opposite direction</div><div id="R"></div></div>
+</div>
+<div class="tip">Oru chart-il "only available on TradingView" ennu vannaal aa chart-inte keezhe ulla <b>swap</b> button thottuka, vere source varum.<br>US10Y chart (106.x): ithu bond <b>price</b> aanu, yield-inte neril ethire. Chart thaazhunnu = yield kayarunnu.<br>US10Y YIELD chart (4.x %): ithu yield thanne. Chart kayarunnu = yield kayarunnu = dollar kayarum, gold thaazhum.</div>
+<script>
+var LEFT=[["OANDA:XAUUSD"],["FX:EURUSD"],["FX:GBPUSD"],["OANDA:XAGUSD"]];
+var RIGHT=[["CAPITALCOM:DXY","ICEUS:DX1!","FOREXCOM:DXY","TVC:DXY"],["OANDA:USB10YUSD","CBOT:ZN1!","TVC:US10Y"],["TVC:US10Y"],["FX:USDJPY"],["OANDA:USDTHB"]];
+var TF=[["5m","5"],["15m","15"],["1h","60"],["4h","240"]],cur="15",slots=[];
+function mount(s){
+  var old=s.box.querySelector(".tradingview-widget-container");if(old)old.remove();
+  var w=document.createElement("div");w.className="tradingview-widget-container";w.style.height="100%";
+  var i=document.createElement("div");i.className="tradingview-widget-container__widget";i.style.height="100%";
+  w.appendChild(i);
+  var sc=document.createElement("script");
+  sc.src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";sc.async=true;
+  sc.text=JSON.stringify({autosize:true,symbol:s.list[s.i],interval:cur,timezone:"Asia/Kolkata",theme:"dark",style:"1",locale:"en",backgroundColor:"#0c3b55",hide_top_toolbar:true,hide_side_toolbar:true,allow_symbol_change:false,save_image:false,calendar:false});
+  w.appendChild(sc);s.box.insertBefore(w,s.box.firstChild);
+}
+function add(host,list){
+  var box=document.createElement("div");box.className="box";host.appendChild(box);
+  var s={box:box,list:list,i:0};slots.push(s);
+  if(list.length>1){var b=document.createElement("button");b.className="sw";b.textContent="swap";
+    b.onclick=function(){s.i=(s.i+1)%s.list.length;b.textContent="swap ("+(s.i+1)+"/"+s.list.length+")";mount(s)};box.appendChild(b)}
+  mount(s);
+}
+function build(){
+  var L=document.getElementById("L"),R=document.getElementById("R");L.innerHTML="";R.innerHTML="";slots=[];
+  LEFT.forEach(function(x){add(L,x)});RIGHT.forEach(function(x){add(R,x)});
+}
+var tf=document.getElementById("tf");
+TF.forEach(function(t){var b=document.createElement("button");b.textContent=t[0];if(t[1]===cur)b.className="on";
+  b.onclick=function(){cur=t[1];[].forEach.call(tf.children,function(c){c.className=""});b.className="on";build()};tf.appendChild(b)});
+build();
+</script>
+</body>
+</html>
