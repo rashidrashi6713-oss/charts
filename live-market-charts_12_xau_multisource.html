@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Live Market Charts 10</title><meta name="description" content="Live market charts with dedicated US 10-year Treasury yield sources">
+<style>
+:root{--bg:#0c3b55;--ink:#e8f6ef;--mute:#9cc3c4;--up:#3ddc84;--down:#ff6a3d;--line:rgba(61,220,132,.55);color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:"Trebuchet MS",system-ui,sans-serif}
+header{padding:calc(14px + env(safe-area-inset-top,0px)) 12px 8px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+h1{margin:0;font-size:1.1rem}
+.tf button{background:transparent;color:var(--ink);border:1px solid var(--line);padding:6px 12px;border-radius:6px;font:inherit;font-size:.85rem;margin-left:4px}
+.tf button.on{background:var(--up);color:#06281a;border-color:var(--up)}
+.cols{display:grid;grid-template-columns:1fr 1fr;border-top:2px solid var(--line)}
+.col:first-child{border-right:2px solid var(--line)}
+.hd{padding:8px 10px;font-weight:700;font-size:.85rem;border-bottom:2px solid var(--line)}
+.up{color:var(--up)}.down{color:var(--down)}
+.box{position:relative;height:300px;border-bottom:2px solid var(--line);padding-top:24px}.chart-label{position:absolute;left:8px;top:5px;z-index:4;font-size:.72rem;color:var(--mute);font-weight:700;pointer-events:none}
+.sw{position:absolute;right:6px;bottom:6px;z-index:5;background:rgba(0,0,0,.55);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px 8px;font:inherit;font-size:.72rem}
+.ind{padding:26px 10px 8px;overflow:auto;height:auto;min-height:300px;font-size:.8rem}
+.sig{border-radius:10px;padding:12px 8px;text-align:center;font-weight:800;font-size:1.25rem;letter-spacing:.5px;margin-bottom:8px;border:2px solid var(--line)}
+.sig small{display:block;font-weight:400;font-size:.7rem;margin-top:3px;opacity:.9}
+.sig.buy{background:var(--up);color:#06281a;border-color:var(--up)}
+.sig.sell{background:var(--down);color:#2a0d02;border-color:var(--down)}
+.sig.wait{background:rgba(0,0,0,.3);color:var(--mute)}
+.sig.buyw{background:rgba(61,220,132,.18);color:var(--up);border-color:var(--up)}
+.sig.sellw{background:rgba(255,106,61,.18);color:var(--down);border-color:var(--down)}
+.row{display:flex;justify-content:space-between;gap:6px;padding:4px 0;border-bottom:1px dotted rgba(156,195,196,.3)}
+.row span:last-child{text-align:right;font-weight:700}
+.ok{color:var(--up)}.no{color:var(--down)}.nu{color:var(--mute)}
+.meta{margin-top:6px;color:var(--mute);font-size:.68rem;line-height:1.4}
+.tip{padding:10px 12px calc(14px + env(safe-area-inset-bottom,0px));color:var(--mute);font-size:.8rem;line-height:1.5}
+</style>
+</head>
+<body>
+<header><h1>Live market charts</h1><div class="tf" id="tf"></div></header>
+<div class="cols">
+ <div class="col"><div class="hd up">Gold-oppam same direction</div><div id="L"></div></div>
+ <div class="col"><div class="hd down">Gold-nu opposite direction</div><div id="R"></div></div>
+</div>
+<div class="tip">Chart-il "only available on TradingView" vannaal chart-inte keezhe ulla <b>swap</b> thottuka, adutha source varum.<br><b>2nd chart = US10Y YIELD</b> (4.x %): 1) TVC:US10Y, 2) CBOE:TNX (yield x10, ex: 42.5 = 4.25%), 3) ECONOMICS:US10Y, 4) FRED:DGS10 (daily).<br><b>3rd chart = bond PRICE</b> (yield-inte neril ethire): OANDA:USB10YUSD (106.x), ZN futures, IEF, TLT. Chart thaazhunnu = yield kayarunnu.</div>
+<script>
+var LEFT=[["OANDA:XAUUSD"],["FX:EURUSD"],["FX:GBPUSD"],["OANDA:XAGUSD"]];
+var RIGHT=[["CAPITALCOM:DXY","ICEUS:DX1!","FOREXCOM:DXY","TVC:DXY"],["TVC:US10Y","FRED:DGS10","ECONOMICS:US10Y","CBOE:TNX"],["OANDA:USB10YUSD","CBOT:ZN1!","NASDAQ:IEF","NASDAQ:TLT"],["FX:USDJPY"],["OANDA:USDTHB"]];
+var TF=[["5m","5"],["15m","15"],["1h","60"],["4h","240"]],cur="15",slots=[];
+function mount(s){
+  var old=s.box.querySelector(".tradingview-widget-container");if(old)old.remove();
+  var w=document.createElement("div");w.className="tradingview-widget-container";w.style.height="100%";
+  var i=document.createElement("div");i.className="tradingview-widget-container__widget";i.style.height="100%";
+  w.appendChild(i);
+  var sc=document.createElement("script");
+  sc.src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";sc.async=true;
+  sc.text=JSON.stringify({autosize:true,symbol:s.list[s.i],interval:(s.list[s.i].indexOf("FRED:")===0?"D":cur),timezone:"Asia/Kolkata",theme:"dark",style:"1",locale:"en",backgroundColor:"#0c3b55",hide_top_toolbar:true,hide_side_toolbar:true,allow_symbol_change:false,save_image:false,calendar:false});
+  w.appendChild(sc);s.box.insertBefore(w,s.box.firstChild);
+}
+function add(host,list){
+  var box=document.createElement("div");box.className="box";host.appendChild(box);
+  var s={box:box,list:list,i:0};slots.push(s);
+  var label=document.createElement("div");label.className="chart-label";label.textContent=(host.id==="R" && list===RIGHT[1])?"US 10Y YIELD (%)":(host.id==="R" && list===RIGHT[2])?"US 10Y BOND PRICE":"SOURCE: "+list[0];box.appendChild(label);
+  if(list.length>1){var b=document.createElement("button");b.className="sw";b.textContent="swap 1/"+list.length+" "+list[0].split(":")[1];
+    b.onclick=function(){s.i=(s.i+1)%s.list.length;b.textContent="swap "+(s.i+1)+"/"+s.list.length+" "+s.list[s.i].split(":")[1];mount(s)};box.appendChild(b)}
+  mount(s);
+}
+
+/* ===== XAUUSD CONFIRMATION INDICATOR (10th chart) ===== */
+var IMAP={"5":"5m","15":"15m","60":"1h","240":"4h"};
+var SRC="";
+/* data sources - onnu block aayaal adutha try cheyyum */
+var KMAP={"5m":{by:"5",kr:5},"15m":{by:"15",kr:15},"1h":{by:"60",kr:60},"4h":{by:"240",kr:240},"1d":{by:"D",kr:1440}};
+function binK(host,name){return function(iv,n){return fetch(host+"/api/v3/klines?symbol=PAXGUSDT&interval="+iv+"&limit="+n).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(a){SRC=name;return a.map(function(k){return{o:+k[1],h:+k[2],l:+k[3],c:+k[4]}})})}}
+var SOURCES=[
+ binK("https://api.binance.com","Binance PAXGUSDT"),
+ binK("https://data-api.binance.vision","Binance PAXGUSDT"),
+ function(iv,n){return fetch("https://api.bybit.com/v5/market/kline?category=spot&symbol=PAXGUSDT&interval="+KMAP[iv].by+"&limit="+n).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){var l=j.result.list.slice().reverse();if(!l.length)throw 0;SRC="Bybit PAXGUSDT";return l.map(function(k){return{o:+k[1],h:+k[2],l:+k[3],c:+k[4]}})})},
+ function(iv,n){return fetch("https://api.kraken.com/0/public/OHLC?pair=PAXGUSD&interval="+KMAP[iv].kr).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){var key=Object.keys(j.result).filter(function(x){return x!=="last"})[0],l=j.result[key].slice(-n);if(!l.length)throw 0;SRC="Kraken PAXGUSD";return l.map(function(k){return{o:+k[1],h:+k[2],l:+k[3],c:+k[4]}})})}
+];
+function getK(iv,n){
+  var i=0;
+  function go(){
+    if(i>=SOURCES.length)return Promise.reject(new Error("data"));
+    return SOURCES[i++](iv,n).catch(go);
+  }
+  return go();
+}
+function ema(a,p){var k=2/(p+1),e=a[0];for(var i=1;i<a.length;i++)e=a[i]*k+e*(1-k);return e}
+function rsi(a,p){var g=0,l=0,i;for(i=1;i<=p;i++){var d=a[i]-a[i-1];if(d>=0)g+=d;else l-=d}g/=p;l/=p;
+  for(i=p+1;i<a.length;i++){var d2=a[i]-a[i-1];g=(g*(p-1)+(d2>0?d2:0))/p;l=(l*(p-1)+(d2<0?-d2:0))/p}
+  return l===0?100:100-100/(1+g/l)}
+function side(k){var c=k.map(function(x){return x.c}),e=ema(c,50),p=c[c.length-1];return{p:p,e:e,dir:p>e?1:-1}}
+function candle(k){
+  var a=k[k.length-2],b=k[k.length-1],body=Math.abs(b.c-b.o),rng=(b.h-b.l)||1e-9;
+  var up=b.h-Math.max(b.o,b.c),lo=Math.min(b.o,b.c)-b.l;
+  var r={buy:"",sell:""};
+  if(a.c<a.o&&b.c>b.o&&b.c>=a.o&&b.o<=a.c)r.buy="Bullish engulfing";
+  else if(lo>=2*Math.max(body,rng*.05)&&lo>=2*up&&(b.c-b.l)/rng>.6)r.buy="Bullish pin bar";
+  if(a.c>a.o&&b.c<b.o&&b.c<=a.o&&b.o>=a.c)r.sell="Bearish engulfing";
+  else if(up>=2*Math.max(body,rng*.05)&&up>=2*lo&&(b.h-b.c)/rng>.6)r.sell="Bearish pin bar";
+  return r;
+}
+function fmt(x){return x.toFixed(2)}
+function renderInd(el){
+  Promise.all([getK("1d",120),getK("4h",120),getK(IMAP[cur],200)]).then(function(r){
+    var d=r[0].slice(0,-1),h=r[1].slice(0,-1),m=r[2].slice(0,-1),live=r[2][r[2].length-1].c;
+    var D=side(d),H=side(h),M=side(m);
+    var bias=(D.dir===H.dir)?D.dir:0;
+    var rs=rsi(m.map(function(x){return x.c}),14),cd=candle(m);
+    var pdh=d[d.length-1].h,pdl=d[d.length-1].l;
+    var dirTxt=bias===1?"BUY":bias===-1?"SELL":"";
+    var entryOk=bias!==0&&M.dir===bias;
+    var rsiOk=bias===1?(rs>50&&rs<75):bias===-1?(rs<50&&rs>25):false;
+    var cnf=bias===1?cd.buy:bias===-1?cd.sell:"";
+    var cls="wait",head="NO TRADE",sub="D1 & H4 bias match aayilla - wait cheyyuka";
+    if(bias!==0){
+      var n=(entryOk?1:0)+(rsiOk?1:0)+(cnf?1:0);
+      if(entryOk&&cnf&&rsiOk){cls=bias===1?"buy":"sell";head=dirTxt+" CONFIRMED";sub="Bias + EMA + RSI + candle ellam match"}
+      else if(entryOk&&cnf){cls=bias===1?"buy":"sell";head=dirTxt+" CONFIRMED";sub="Candle confirm aayi (RSI neutral/stretched)"}
+      else{cls=bias===1?"buyw":"sellw";head="WAIT: "+dirTxt+" ONLY";sub="Bias "+(bias===1?"bullish":"bearish")+" - entry confirmation kaathirikkuka ("+n+"/3)"}
+    }
+    function row(a,b,c){return '<div class="row"><span>'+a+'</span><span class="'+c+'">'+b+'</span></div>'}
+    function dd(x){return x.dir===1?'<span class="ok">BULL</span>':'<span class="no">BEAR</span>'}
+    var h2='<div class="sig '+cls+'">'+head+'<small>'+sub+'</small></div>';
+    h2+=row("Price (PAXG~XAU)",fmt(live),"nu");
+    h2+=row("D1 vs 50 EMA",dd(D)+" ("+fmt(D.e)+")","nu");
+    h2+=row("H4 vs 50 EMA",dd(H)+" ("+fmt(H.e)+")","nu");
+    h2+=row("HTF bias",bias===1?"BULLISH (buy only)":bias===-1?"BEARISH (sell only)":"NO BIAS",bias===1?"ok":bias===-1?"no":"nu");
+    h2+=row(cur+"m vs 50 EMA",bias===0?"-":entryOk?"Direction-il \u2714":"Ethire \u2716",bias===0?"nu":entryOk?"ok":"no");
+    h2+=row("RSI(14)",rs.toFixed(1)+(bias===0?"":rsiOk?" \u2714":" \u2716"),bias===0?"nu":rsiOk?"ok":"no");
+    h2+=row("Closed candle",bias===0?"-":cnf?cnf+" \u2714":"Pattern illa \u2716",bias===0?"nu":cnf?"ok":"no");
+    h2+='<div class="meta">Prev day High '+fmt(pdh)+' / Low '+fmt(pdl)+' - ee level-il ethumbo mathram entry nokku.<br>Candle <b>close</b> aayathinu shesham mathram signal. News (NFP/CPI/FOMC) samayam ozhivaakku. DXY: kuranjaal gold buy support (mele chart nokku).<br>Data: '+SRC+' (gold-backed, XAUUSD-ye follow cheyyum, price-il chinna difference undaakam). Educational maathram, financial advice alla. Updated '+new Date().toLocaleTimeString()+'</div>';
+    el.innerHTML=h2;
+  }).catch(function(){
+    if(el.getAttribute("data-tv")===cur)return;
+    el.setAttribute("data-tv",cur);
+    el.innerHTML='<div class="meta" style="margin:0 0 6px">API data kittiyilla - <b>TradingView OANDA:XAUUSD</b> signal widget (TradingView data) kaanikkunnu.</div><div class="tradingview-widget-container" style="height:260px"><div class="tradingview-widget-container__widget" style="height:100%"></div></div>';
+    var sc=document.createElement("script");sc.async=true;
+    sc.src="https://s3.tradingview.com/external-embedding/embed-widget-technical-analysis.js";
+    sc.text=JSON.stringify({interval:IMAP[cur],width:"100%",height:"100%",isTransparent:true,symbol:"OANDA:XAUUSD",showIntervalTabs:false,displayMode:"single",locale:"en",colorTheme:"dark"});
+    el.querySelector(".tradingview-widget-container").appendChild(sc);
+  });
+}
+var indTimer=null;
+function addInd(host){
+  var box=document.createElement("div");box.className="box ind";host.appendChild(box);
+  var lb=document.createElement("div");lb.className="chart-label";lb.textContent="XAUUSD CONFIRMATION ("+cur+"m entry)";box.appendChild(lb);
+  var el=document.createElement("div");el.innerHTML="Loading...";box.appendChild(el);
+  el.removeAttribute("data-tv");renderInd(el);clearInterval(indTimer);indTimer=setInterval(function(){renderInd(el)},30000);
+}
+function build(){
+  var L=document.getElementById("L"),R=document.getElementById("R");L.innerHTML="";R.innerHTML="";slots=[];
+  LEFT.forEach(function(x){add(L,x)});addInd(L);RIGHT.forEach(function(x){add(R,x)});
+}
+var tf=document.getElementById("tf");
+TF.forEach(function(t){var b=document.createElement("button");b.textContent=t[0];if(t[1]===cur)b.className="on";
+  b.onclick=function(){cur=t[1];[].forEach.call(tf.children,function(c){c.className=""});b.className="on";build()};tf.appendChild(b)});
+build();
+</script>
+</body>
+</html>
