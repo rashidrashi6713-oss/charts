@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>XAUUSD Buy / Sell</title>
+<style>
+:root{color-scheme:dark;--bg:#0c3b55;--ink:#e8f1f5;--buy:#2ee59d;--sell:#ff6b3d;--mute:#8fb0c0;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+body{display:flex;flex-direction:column}
+#chart{flex:0 0 55%;min-height:0;border-bottom:2px solid #1d7a5f}
+#chart .tradingview-widget-container,#chart .tradingview-widget-container__widget{height:100%;width:100%}
+#sig{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;transition:color .3s,background .3s}
+#sig b{font-size:clamp(64px,22vw,140px);font-weight:800;letter-spacing:.02em;line-height:1}
+#sig span{font-size:13px;color:var(--mute)}
+#sig.buy{color:var(--buy);background:rgba(46,229,157,.08)}
+#sig.sell{color:var(--sell);background:rgba(255,107,61,.08)}
+#sig.load{color:var(--mute)}
+</style>
+</head>
+<body>
+<div id="chart">
+  <div class="tradingview-widget-container"><div class="tradingview-widget-container__widget"></div></div>
+</div>
+<div id="sig" class="load"><b>...</b><span id="t"></span></div>
+<script>
+(function(){
+  var sc=document.createElement("script");
+  sc.src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+  sc.async=true;
+  sc.text=JSON.stringify({autosize:true,symbol:"OANDA:XAUUSD",interval:"15",timezone:"Asia/Kolkata",theme:"dark",style:"1",locale:"en",backgroundColor:"#0c3b55",hide_top_toolbar:true,hide_side_toolbar:true,allow_symbol_change:false,save_image:false,calendar:false});
+  document.querySelector("#chart .tradingview-widget-container").appendChild(sc);
+})();
+
+var BIN=["https://api.binance.com","https://data-api.binance.vision"];
+function getK(iv,n){
+  var i=0;
+  function go(){
+    if(i>=BIN.length)return Promise.reject(new Error("data"));
+    return fetch(BIN[i++]+"/api/v3/klines?symbol=PAXGUSDT&interval="+iv+"&limit="+n)
+      .then(function(r){if(!r.ok)throw 0;return r.json()}).catch(go);
+  }
+  return go().then(function(a){return a.map(function(k){return{o:+k[1],h:+k[2],l:+k[3],c:+k[4]}})});
+}
+function ema(a,p){var k=2/(p+1),e=a[0];for(var i=1;i<a.length;i++)e=a[i]*k+e*(1-k);return e}
+function rsi(a,p){var g=0,l=0,i,d;for(i=1;i<=p;i++){d=a[i]-a[i-1];if(d>=0)g+=d;else l-=d}g/=p;l/=p;
+  for(i=p+1;i<a.length;i++){d=a[i]-a[i-1];g=(g*(p-1)+(d>0?d:0))/p;l=(l*(p-1)+(d<0?-d:0))/p}
+  return l===0?100:100-100/(1+g/l)}
+function dir(k){var c=k.map(function(x){return x.c});return c[c.length-1]>ema(c,50)?1:-1}
+function candle(k){
+  var a=k[k.length-2],b=k[k.length-1],body=Math.abs(b.c-b.o),rng=(b.h-b.l)||1e-9;
+  var up=b.h-Math.max(b.o,b.c),lo=Math.min(b.o,b.c)-b.l;
+  if(a.c<a.o&&b.c>b.o&&b.c>=a.o&&b.o<=a.c)return 1;
+  if(lo>=2*Math.max(body,rng*.05)&&lo>=2*up&&(b.c-b.l)/rng>.6)return 1;
+  if(a.c>a.o&&b.c<b.o&&b.c<=a.o&&b.o>=a.c)return -1;
+  if(up>=2*Math.max(body,rng*.05)&&up>=2*lo&&(b.h-b.c)/rng>.6)return -1;
+  return 0;
+}
+function run(){
+  Promise.all([getK("1d",120),getK("4h",120),getK("15m",200)]).then(function(r){
+    var d=r[0].slice(0,-1),h=r[1].slice(0,-1),m=r[2].slice(0,-1);
+    var D=dir(d),H=dir(h),M=dir(m);
+    var rs=rsi(m.map(function(x){return x.c}),14);
+    var score=2*D+2*H+M+(rs>50?1:-1)+candle(m);
+    var s=score>0?1:score<0?-1:H;
+    var el=document.getElementById("sig");
+    el.className=s===1?"buy":"sell";
+    el.querySelector("b").textContent=s===1?"BUY":"SELL";
+    document.getElementById("t").textContent=new Date().toLocaleTimeString();
+  }).catch(function(){
+    var el=document.getElementById("sig");
+    el.className="load";el.querySelector("b").textContent="NO DATA";
+    document.getElementById("t").textContent="Internet check cheyyuka";
+  });
+}
+run();setInterval(run,30000);
+</script>
+</body>
+</html>
