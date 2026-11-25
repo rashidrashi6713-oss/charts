@@ -14,7 +14,8 @@ h1{margin:0;font-size:1.05rem}
 .px{font-size:1.05rem;font-weight:700}
 .tf button{background:transparent;color:var(--ink);border:1px solid var(--line);padding:6px 11px;border-radius:6px;font:inherit;font-size:.85rem;margin-left:4px}
 .tf button.on{background:var(--up);color:#06281a;border-color:var(--up)}
-#chart{height:52vh;min-height:300px;border-top:2px solid var(--line);border-bottom:2px solid var(--line)}
+#chart{height:52vh;min-height:300px;position:relative;overflow:hidden;border-top:2px solid var(--line);border-bottom:2px solid var(--line)}
+.leg button{background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:2px 10px;margin-left:4px;font:inherit}
 .leg{padding:6px 12px;font-size:.72rem;color:var(--mute)}
 .leg b.a{color:#ffd24a}.leg b.b{color:#6ec6ff}
 .sig{margin:8px 10px;border-radius:10px;padding:12px 8px;text-align:center;font-weight:800;font-size:1.3rem;border:2px solid var(--line);background:rgba(0,0,0,.3);color:var(--mute)}
@@ -38,7 +39,7 @@ input{width:84px;background:#06283d;color:var(--ink);border:1px solid var(--line
 <body>
 <header><h1>XAU trade chart</h1><span class="px" id="px">-</span><div class="tf" id="tf"></div></header>
 <div id="chart"></div>
-<div class="leg"><b class="a">EMA 20</b> / <b class="b">EMA 50</b> - Entry, SL, TP lines chart-il thanne varum. Samayam IST.</div>
+<div class="leg"><b class="a">EMA 20</b> / <b class="b">EMA 50</b> - Entry, SL, TP lines chart-il thanne varum. Samayam IST. <button onclick="zoom(-20)" style="margin-left:6px">+</button><button onclick="zoom(20)">-</button></div>
 <div class="sig" id="sig">Loading...</div>
 <div class="grid">
  <div class="card" id="chk"></div>
@@ -52,10 +53,9 @@ input{width:84px;background:#06283d;color:var(--ink);border:1px solid var(--line
  <div class="card" id="lvl"></div>
 </div>
 <div class="note" id="note"></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/lightweight-charts/4.1.3/lightweight-charts.standalone.production.js"></script>
 <script>
 var KM={"5m":{bn:"5m",by:"5",kr:5,h:"1h"},"15m":{bn:"15m",by:"15",kr:15,h:"1h"},"1h":{bn:"1h",by:"60",kr:60,h:"4h"},"4h":{bn:"4h",by:"240",kr:240,h:"1d"},"1d":{bn:"1d",by:"D",kr:1440}};
-var cur="15m",SRC="",IST=19800,lines=[],last=null;
+var cur="15m",SRC="",IST=19800,last=null;
 function mapB(a){return a.map(function(k){return{t:Math.floor(+k[0]/1000),o:+k[1],h:+k[2],l:+k[3],c:+k[4]}})}
 function bin(host,name){return function(k,n){return fetch(host+"/api/v3/klines?symbol=PAXGUSDT&interval="+KM[k].bn+"&limit="+n).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(a){SRC=name;return mapB(a)})}}
 var SOURCES=[
@@ -76,13 +76,35 @@ function candle(k){var a=k[k.length-2],b=k[k.length-1],body=Math.abs(b.c-b.o),rn
 function f(x){return x.toFixed(2)}
 function row(a,b,c){return '<div class="row"><span>'+a+'</span><span class="'+(c||"nu")+'">'+b+'</span></div>'}
 
-var chart=LightweightCharts.createChart(document.getElementById("chart"),{autoSize:true,layout:{background:{color:"#0c3b55"},textColor:"#9cc3c4"},grid:{vertLines:{color:"rgba(156,195,196,.08)"},horzLines:{color:"rgba(156,195,196,.12)"}},rightPriceScale:{borderColor:"rgba(61,220,132,.45)"},timeScale:{timeVisible:true,borderColor:"rgba(61,220,132,.45)"}});
-var cs=chart.addCandlestickSeries({upColor:"#3ddc84",downColor:"#ff6a3d",borderUpColor:"#3ddc84",borderDownColor:"#ff6a3d",wickUpColor:"#3ddc84",wickDownColor:"#ff6a3d"});
-var s20=chart.addLineSeries({color:"#ffd24a",lineWidth:1,priceLineVisible:false,lastValueVisible:false});
-var s50=chart.addLineSeries({color:"#6ec6ff",lineWidth:1,priceLineVisible:false,lastValueVisible:false});
-
-function clearLines(){lines.forEach(function(l){cs.removePriceLine(l)});lines=[]}
-function addLine(p,col,title){lines.push(cs.createPriceLine({price:p,color:col,lineWidth:2,lineStyle:0,axisLabelVisible:true,title:title}))}
+var cv=document.createElement("canvas");document.getElementById("chart").appendChild(cv);
+var ctx=cv.getContext("2d"),D=null,VIS=90;
+function draw(){
+ var box=cv.parentNode,dpr=window.devicePixelRatio||1,W=box.clientWidth,H=box.clientHeight;
+ cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+"px";cv.style.height=H+"px";ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
+ if(!D)return;
+ var n=D.all.slice(-VIS),off=D.all.length-n.length,PW=62,PH=18,cw=W-PW,ch=H-PH,hi=-1e9,lo=1e9,i,p,y;
+ n.forEach(function(x){hi=Math.max(hi,x.h);lo=Math.min(lo,x.l)});
+ lines.forEach(function(l){hi=Math.max(hi,l.p);lo=Math.min(lo,l.p)});
+ var pad=(hi-lo)*.06;hi+=pad;lo-=pad;
+ function Y(v){return ch*(hi-v)/(hi-lo)}
+ var step=cw/n.length;
+ ctx.font="11px Trebuchet MS,sans-serif";ctx.textBaseline="middle";
+ for(i=0;i<=5;i++){p=lo+(hi-lo)*i/5;y=Y(p);ctx.strokeStyle="rgba(156,195,196,.13)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(cw,y);ctx.stroke();ctx.fillStyle="#9cc3c4";ctx.textAlign="left";ctx.fillText(f(p),cw+4,y)}
+ ctx.textAlign="center";
+ for(i=0;i<n.length;i+=Math.ceil(n.length/4)){var dt=new Date((n[i].t+IST)*1000);ctx.fillText(("0"+dt.getUTCHours()).slice(-2)+":"+("0"+dt.getUTCMinutes()).slice(-2),step*i+step/2,H-9)}
+ n.forEach(function(x,i){var cx=step*i+step/2,col=x.c>=x.o?"#3ddc84":"#ff6a3d",bw=Math.max(1,step*.65),t1=Y(Math.max(x.o,x.c)),t2=Y(Math.min(x.o,x.c));
+  ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(cx,Y(x.h));ctx.lineTo(cx,Y(x.l));ctx.stroke();ctx.fillRect(cx-bw/2,t1,bw,Math.max(1,t2-t1))});
+ function path(arr,col){ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.beginPath();n.forEach(function(x,i){var cx=step*i+step/2,yy=Y(arr[off+i]);if(i)ctx.lineTo(cx,yy);else ctx.moveTo(cx,yy)});ctx.stroke()}
+ path(D.E20,"#ffd24a");path(D.E50,"#6ec6ff");
+ lines.forEach(function(l){y=Y(l.p);ctx.strokeStyle=l.col;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(cw,y);ctx.stroke();
+  ctx.fillStyle=l.col;ctx.fillRect(cw,y-8,PW,16);ctx.fillStyle="#06281a";ctx.textAlign="left";ctx.fillText(l.title+" "+f(l.p),cw+3,y)});
+ var lp=D.all[D.all.length-1].c;y=Y(lp);ctx.setLineDash([3,3]);ctx.strokeStyle="rgba(255,255,255,.5)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(cw,y);ctx.stroke();ctx.setLineDash([]);
+}
+window.addEventListener("resize",draw);
+function zoom(d){VIS=Math.max(30,Math.min(250,VIS+d));draw()}
+var lines=[];
+function clearLines(){lines=[]}
+function addLine(p,col,title){lines.push({p:p,col:col,title:title})}
 
 function trend(k){var c=k.map(function(x){return x.c}),e20=emaArr(c,20),e50=emaArr(c,50),p=c[c.length-1],a=e20[e20.length-1],b=e50[e50.length-1];
  return{p:p,e20:a,e50:b,dir:(p>b&&a>b)?1:(p<b&&a<b)?-1:0}}
@@ -91,10 +113,7 @@ function run(first){
  Promise.all([getK(cur,300),getK(KM[cur].h,150)]).then(function(r){
   var all=r[0],m=all.slice(0,-1),h=r[1].slice(0,-1),live=all[all.length-1].c;
   var c=all.map(function(x){return x.c}),E20=emaArr(c,20),E50=emaArr(c,50);
-  cs.setData(all.map(function(x){return{time:x.t+IST,open:x.o,high:x.h,low:x.l,close:x.c}}));
-  s20.setData(all.map(function(x,i){return{time:x.t+IST,value:E20[i]}}));
-  s50.setData(all.map(function(x,i){return{time:x.t+IST,value:E50[i]}}));
-  if(first)chart.timeScale().setVisibleLogicalRange({from:all.length-90,to:all.length+6});
+  D={all:all,E20:E20,E50:E50};
   document.getElementById("px").textContent=f(live);
 
   var T=trend(h),mc=m.map(function(x){return x.c}),me=emaArr(mc,20),m20=me[me.length-1];
@@ -130,9 +149,9 @@ function run(first){
    plan.innerHTML='<h2>Trade plan</h2><div class="nu" style="line-height:1.5">Signal confirm aayaal Entry / SL / TP ivide varum.</div>';
    lvl.innerHTML='<h2>ATR('+cur+')</h2>'+row("ATR",f(A))+row("EMA20",f(m20))+row("HTF EMA50",f(T.e50));
   }
-  calcLot();
+  calcLot();draw();
   document.getElementById("note").innerHTML="Data: "+SRC+" (gold-backed, XAUUSD-ye follow cheyyum, chinna price difference undaakam). Closed candle-il maathram signal. NFP/CPI/FOMC samayam trade ozhivaakku. Educational maathram, financial advice alla. Updated "+new Date().toLocaleTimeString();
- }).catch(function(){document.getElementById("sig").innerHTML="Data kittiyilla<small>Network / VPN nokku, 15 sec-il veendum try cheyyum</small>"});
+ }).catch(function(e){document.getElementById("sig").innerHTML="Data kittiyilla<small>"+(e&&e.message?e.message:"")+" - Network / VPN nokku, 15 sec-il veendum try cheyyum</small>"});
 }
 function calcLot(){
  var bal=+document.getElementById("bal").value,rk=+document.getElementById("rk").value,el=document.getElementById("lot");
